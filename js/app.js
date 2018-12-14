@@ -23,7 +23,8 @@ $( document ).ready(function() {
 		},500),
         $(".skills-page").show();
         $(".feature-2").slideDown(); 
-        $(".feature-3").slideUp(); 
+				$(".feature-3").slideUp(); 
+				$(".feature-4").slideUp(); 
         $(".close-container").fadeIn();
     	return false;
     });
@@ -41,6 +42,7 @@ $( document ).ready(function() {
 			},500), 
 					$(".feature-3").slideDown(); 
 					$(".feature-2").slideUp(); 
+					$(".feature-4").slideUp(); 
 					$(".close-container").fadeIn();
 				return false;
 		});
