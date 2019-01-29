@@ -1,0 +1,366 @@
+<html>
+<head> <meta charset="utf-8"> 
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+<title> Login to THE GAME </title>
+<script type="text/javascript">
+var score = 0;
+var enemyTicksPerMovement = 7;
+var playerNum = 1;
+var enemyNum = 2;
+var boxNum = 3;
+var wallNum = 4;
+var gameover = false;
+var enmyImg;
+var boxImg;
+var playerImg;
+var wallImg;
+var player;
+var context;
+var gameSizeX = 15;
+var gameSizeY = 15;
+var gameBoard = new Array();
+var enemyList = [];
+var directionList = [[1,0],[0,1],[0,-1],[-1,0],[1,1],[-1,1],[1,-1],[-1,-1]];
+// -- Start Wall Class --
+function Wall (img, x, y) {
+    this.x = x;
+    this.y = y;
+	this.img = img;
+	this.id = wallNum;
+	gameBoard[x][y] = this;
+}
+Wall.prototype.draw = function(ctxt) {
+	ctxt.drawImage(this.img, this.x*30, this.y*30);
+}
+// -- End Wall Class --
+// -- Start Box Class --
+function Box (img, x, y) {
+    this.x = x;
+    this.y = y;
+	this.img = img;
+	this.id = boxNum;
+	gameBoard[x][y] = this;
+}
+Box.prototype.draw = function(ctxt) {
+	ctxt.drawImage(this.img, this.x*30, this.y*30);
+}
+Box.prototype.move = function(x,y) {
+	var next = gameBoard[this.x + x][this.y - y];
+	if(next == 0){
+		gameBoard[this.x + x][this.y - y] = this;
+		gameBoard[this.x][this.y] = 0;
+		this.x += x;
+		this.y -= y;
+		return true;
+	}else if(next.id == boxNum){
+		if(next.move(x,y)){
+			gameBoard[this.x + x][this.y - y] = this;
+			gameBoard[this.x][this.y] = 0;
+			this.x += x;
+			this.y -= y;
+			return true;
+		}
+	} 
+	return false;
+}
+// -- End Box Class --
+// -- Start Enemy Class --
+function Enemy (img, x, y) {
+    this.x = x;
+    this.y = y;
+	this.img = img;
+	this.id = enemyNum;
+	this.ticks = 0;
+	this.dead = false;
+	gameBoard[this.x][this.y] = this;
+}
+Enemy.prototype.draw = function(ctxt) {
+	ctxt.drawImage(this.img, 3+this.x*30, 3+this.y*30);
+}
+Enemy.prototype.move = function() {
+	if(this.dead) return;
+	this.ticks++;
+	if(this.ticks < enemyTicksPerMovement) return;
+	this.ticks = 0;
+	var c;
+	var start;
+	do{
+		c = Math.floor(Math.random()*8);
+	}while(c == 8);
+	start = c;
+	
+	var d; 
+	var v;
+	do{
+		c++;
+		c %= 8;
+		d = directionList[c];
+		v = gameBoard[this.x+d[0]][this.y-d[1]];
+	} while(v != 0 && v.id != playerNum && c != start);
+	if(v == 0 || v.id == playerNum){
+		gameBoard[this.x][this.y] = 0;
+		this.x += d[0];
+		this.y -= d[1];
+		gameBoard[this.x][this.y] = this;
+	}else{
+		score += 50;
+		this.dead = true;
+		gameBoard[this.x][this.y] = 0;
+	}
+}
+// -- End Enemy Class --
+// -- Start Player Class --
+function Player (img) {
+    this.x = 7;
+    this.y = 7;
+	this.moveX = 0;
+	this.moveY = 0;
+	this.img = img;
+	this.id = playerNum;
+	gameBoard[this.x][this.y] = this;
+}
+Player.prototype.draw = function(ctxt) {
+	ctxt.drawImage(this.img, 3+this.x*30, 3+this.y*30);
+}
+Player.prototype.move = function(direction) {
+	var lastX = this.x;
+	var lastY = this.y;
+	this.x += this.moveX;
+	this.y -= this.moveY;
+	if(gameBoard[this.x][this.y].id == boxNum){
+		if(!gameBoard[this.x][this.y].move(this.moveX,this.moveY)){
+			this.x = lastX;
+			this.y = lastY;
+		}
+	}else if(gameBoard[this.x][this.y].id == wallNum){
+		this.x = lastX;
+		this.y = lastY;
+	}else if(gameBoard[this.x][this.y].id == enemyNum){
+		return false;
+	}
+	this.moveX = 0;
+	this.moveY = 0;
+	gameBoard[lastX][lastY] = 0;
+	gameBoard[this.x][this.y] = this;
+	return true;
+}
+Player.prototype.setMove = function(x, y) { this.moveX = x; this.moveY = y; }
+Player.prototype.moveUp = function() { this.moveY = 1; }
+Player.prototype.moveRight = function() { this.moveX = 1; }
+Player.prototype.moveDown = function() { this.moveY = -1; }
+Player.prototype.moveLeft = function() { this.moveX = -1; }
+
+// -- End Player Class --
+
+function moveAllEnemies(){
+	var c = enemyList.length;
+	var i;
+	for(i=0; i < c; i++){
+		enemyList[i].move();
+	}
+}
+function drawGrid(ctxt){
+	var i;
+	ctxt.beginPath();
+	for(i=0;i<=gameSizeX; i++){
+		ctxt.moveTo(0,i*30);
+		ctxt.lineTo(450,i*30);
+	}
+	for(i=0;i<=gameSizeX; i++){
+		ctxt.moveTo(i*30,0);
+		ctxt.lineTo(i*30,450);
+	}
+	ctxt.lineWidth=1;
+	ctxt.stroke();
+}
+function clearRect(ctxt){
+	ctxt.clearRect(0,0,450,450);
+}
+function gameOverScreen(ctxt){
+	ctxt.fillStyle="#3366FF";
+	ctxt.fillRect(112.5, 175, 225, 100);
+	ctxt.strokeStyle="#2447B2";
+	ctxt.lineWidth = 3;
+	ctxt.strokeRect(112.5, 175, 225, 100);
+	ctxt.fillStyle="#000000";
+	ctxt.strokeStyle="#000000";
+	ctxt.font="bold 20px Georgia";
+	ctxt.fillText("Game Over!",170,200);
+	ctxt.font="14px Georgia";
+	ctxt.fillText("Total Score: "+score,125,220);
+	$.ajax({
+	  url: "savehighscore.php",
+	  type: "post",
+	  data: {
+		highscore: score
+	  }
+	});
+	ctxt.fillStyle="#0099FF";
+	ctxt.fillRect(234.5, 242, 95, 25);
+	ctxt.strokeStyle="#99D6FF";
+	ctxt.lineWidth = 2;
+	ctxt.strokeRect(234.5, 242, 95, 25);
+	ctxt.fillStyle="#000000";
+	ctxt.fillText("Play Again",250,261);
+}
+function drawGameBoard(ctxt){
+	var x;
+	var y;
+	for(x=0;x<gameSizeX;x++){
+		for(y=0;y<gameSizeY;y++){
+			if(gameBoard[x][y] != 0)
+				gameBoard[x][y].draw(ctxt);
+		}
+	}
+}
+function gameLoop() {
+	clearRect(context);
+	drawGrid(context);
+	moveAllEnemies();
+	if(!player.move()){
+		gameover = true;
+		stopTimer();
+	}
+	drawGameBoard(context);
+	if(gameover){
+		gameOverScreen(context);
+	}
+}
+function keyPress(event) {
+    var key = (event.keyCode);
+    switch (key) {
+        case 38:
+            player.moveUp();
+			event.preventDefault();
+            break;
+        case 40:
+            player.moveDown();
+			event.preventDefault();
+            break;
+        case 37:
+            player.moveLeft();
+			event.preventDefault();
+            break;
+        case 39:
+            player.moveRight();
+			event.preventDefault();
+			break;
+    }
+}
+function fillWithBoxes(num, boxImg){
+	var i;
+	for(i=0; i < num; i++){
+		var x;
+		var y;
+		do{
+			x = Math.floor(Math.random()*(gameSizeX-2)+1);
+			y = Math.floor(Math.random()*(gameSizeY-2)+1);
+		}while(gameBoard[x][y] != 0);
+		new Box(boxImg, x, y);
+	}
+}
+function fillWithEnemies(num, enemyImg){
+	var i;
+	for(i=0; i < num; i++){
+		var x;
+		var y;
+		do{
+			do{
+				x = Math.floor(Math.random()*(gameSizeX-2)+1);
+			}while(Math.abs(7-x) <=2);
+			do{
+				y = Math.floor(Math.random()*(gameSizeY-2)+1);
+			}while(Math.abs(7-y) <=2);
+		}while(gameBoard[x][y] != 0);
+		enemyList.push(new Enemy(enemyImg, x, y));
+	}
+}
+function initGameBoard(){
+	var x;
+	var y;
+	for(x=0; x<gameSizeX; x++){
+		gameBoard[x]=new Array();
+		for(y=0; y<gameSizeY; y++){
+			gameBoard[x][y] = 0;
+		}
+	}
+}
+function initWalls(wallImg){
+	var x;
+	var y;
+	for(x=0;x<gameSizeX;x++){
+		gameBoard[x][0] = new Wall(wallImg, x, 0);
+		gameBoard[x][gameSizeY-1] = new Wall(wallImg, x, gameSizeY-1);
+	}
+	for(y=1;y<gameSizeY-1;y++){
+		gameBoard[0][y] = new Wall(wallImg, 0, y);
+		gameBoard[gameSizeY-1][y] = new Wall(wallImg, gameSizeX-1, y);
+	}
+}
+function onLoad(){
+	enemyImg = document.getElementById("enemyId");
+	boxImg = document.getElementById("boxId");
+	wallImg = document.getElementById("wallId");
+	playerImg = document.getElementById("playerId");
+	context = document.getElementById("canvas").getContext("2d");
+	addEventListener("keydown", keyPress);
+	initGameBoard();
+	player = new Player(playerImg);
+	initWalls(wallImg);
+	fillWithBoxes(60, boxImg);
+	fillWithEnemies(10, enemyImg);
+	gameover = false;
+	score = 0;
+	//gameOverScreen(context);
+	startTimer();
+}
+var timer;
+function startTimer(){
+	timer=setInterval(function () {gameLoop();}, 100);
+}
+function stopTimer(){
+	clearInterval(timer);
+}
+</script>
+<style>
+td {
+    text-align: center;
+}
+</style>
+</head> 
+    <body onload="onLoad();" background="img/background.png">
+	<div style="float:left;"><canvas id="canvas" width="450" height="450" style="border:1px solid;">
+		Browser does not support HTML5</canvas></div>
+	<div style="padding:25px;float:left;">
+		<div>
+		<table align="center" style="textalign:center">
+		<tr>
+		<td style="padding-right:5px;">Player</td>
+		<td style="padding-right:5px;">Enemy</td>
+		<td style="padding-right:5px;">Boxes</td>
+		<td style="padding-right:5px;">Wall</td>
+		</tr>
+		<tr>
+		<td><img id="playerId" src="img/player.png"/></td>
+		<td><img id="enemyId" src="img/devil.png"/></td>
+		<td><img id="boxId" src="img/box.png"/></td>
+		<td><img id="wallId" src="img/wall.png"/></td>
+		</tr>
+		</table>
+		</div>
+		<div style="padding-top:25px;">
+		<img src="img/arrows.png" usemap="#imagemap"/>
+		<map name="imageMap">
+		<area shape="poly" coords="147,150,202,205,263,178,300,209,300,94,262,123,201,94" onClick="player.setMove(1,0);"/>
+		<area shape="poly" coords="147,150,93,96,31,123,0,92,0,208,32,178,93,208" onClick="player.setMove(-1,0);"/>
+		<area shape="poly" coords="147,150,201,94,171,30,205,0,92,0,121,32,93,96" onClick="player.setMove(0,1);"/>
+		<area shape="poly" coords="147,150,93,208,123,270,89,300,204,300,172,266,203,206" onClick="player.setMove(0,-1);"/>
+		<area shape="poly" coords="0,300,0,208,33,178,93,208,123,270,89,300" onClick="player.setMove(-1,-1);"/>
+		<area shape="poly" coords="0,0,0,93,31,123,93,96,121,32,92,0" onClick="player.setMove(-1,1);"/>
+		<area shape="poly" coords="300,0,205,0,171,30,201,94,262,123,300,94" onClick="player.setMove(1,1);"/>
+		<area shape="poly" coords="300,209,263,178,203,205,172,266,204,300,300,300" onClick="player.setMove(1,-1);"/>
+		</map>
+	</div>
+	</body> 
+</html> 
+
